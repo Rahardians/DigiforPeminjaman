@@ -91,7 +91,9 @@ async function readDb(room) {
       });
       const json = await res.json();
       if (json && json.result) {
-        const parsed = typeof json.result === 'string' ? JSON.parse(json.result) : json.result;
+        // PERBAIKAN: Mencegah error double-stringify
+        let parsed = typeof json.result === 'string' ? JSON.parse(json.result) : json.result;
+        if (typeof parsed === 'string') parsed = JSON.parse(parsed); 
         return { ...parsed, storageMode: 'vercel_kv' };
       }
       return { ...DEFAULT_DATA, storageMode: 'vercel_kv' };
@@ -146,7 +148,8 @@ async function writeDb(room, payload) {
           Authorization: `Bearer ${kvToken}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(JSON.stringify(safePayload))
+        // PERBAIKAN: Dibuat menjadi JSON.stringify 1x saja
+        body: JSON.stringify(safePayload)
       });
       storageMode = 'vercel_kv';
     } catch (e) {}
