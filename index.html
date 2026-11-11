@@ -1,0 +1,1468 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manajemen Peminjaman & Pengembalian Barang</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in {
+      animation: fadeIn 0.2s ease-out forwards;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-20">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-sm shrink-0">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-lg sm:text-xl font-bold text-slate-900 leading-tight">Manajemen Peminjaman & Pengembalian Barang</h1>
+          <p class="text-xs sm:text-sm text-slate-500">Catat peminjaman aktif dan proses pengembalian barang secara terintegrasi</p>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
+        <div class="bg-indigo-50 text-indigo-700 font-medium px-3 py-1.5 rounded-lg border border-indigo-100">
+          Sedang Dipinjam: <span id="stat-records" class="font-bold">0</span> (<span id="stat-units" class="font-bold">0</span> Unit)
+        </div>
+        <div class="bg-emerald-50 text-emerald-700 font-medium px-3 py-1.5 rounded-lg border border-emerald-100">
+          Sudah Dikembalikan: <span id="stat-returned" class="font-bold">0</span>
+        </div>
+        <button
+          type="button"
+          id="btn-open-db-modal"
+          title="Pengaturan Koneksi Database Vercel / Cloud"
+          class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg font-medium border transition bg-white hover:bg-slate-100 text-slate-600 border-slate-200"
+        >
+          <span id="db-status-dot" class="w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span id="db-status-label" class="text-xs">DB Sync</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 flex-1 space-y-6">
+
+    <!-- ========================================================= -->
+    <!-- PAGE 1: HALAMAN PEMINJAMAN BARANG                         -->
+    <!-- ========================================================= -->
+    <div id="page-peminjaman" class="space-y-6 animate-fade-in">
+
+      <!-- Top Bar Navigasi Page Peminjaman -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 sm:px-6 rounded-2xl border border-slate-200 shadow-xs">
+        <div class="flex items-center gap-2.5">
+          <span class="px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 font-bold text-xs uppercase tracking-wider">Halaman Aktif</span>
+          <h2 class="text-base sm:text-lg font-bold text-slate-900">Peminjaman Barang</h2>
+        </div>
+        <button
+          type="button"
+          id="btn-goto-pengembalian"
+          class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white shadow-sm transition"
+        >
+          <span>Ke Halaman Pengembalian Barang</span>
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Form Tambah / Edit Peminjaman -->
+      <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 id="form-title" class="text-base font-semibold text-slate-900 flex items-center gap-2">
+            <span id="form-badge" class="w-2.5 h-2.5 rounded-full bg-indigo-600 inline-block"></span>
+            Tambah Peminjaman Baru
+          </h2>
+          <button type="button" id="btn-cancel-edit" class="hidden text-xs font-medium text-slate-500 hover:text-slate-800 px-2.5 py-1 rounded-md hover:bg-slate-100 transition">
+            Batal Edit
+          </button>
+        </div>
+
+        <form id="loan-form" class="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end">
+          <input type="hidden" id="edit-id" value="">
+
+          <div class="sm:col-span-3">
+            <label for="input-tanggal" class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+              Tanggal <span class="text-rose-500">*</span>
+            </label>
+            <input
+              type="date"
+              id="input-tanggal"
+              required
+              class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 transition"
+            >
+          </div>
+
+          <div class="sm:col-span-4">
+            <label for="input-nama" class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+              Nama Barang <span class="text-rose-500">*</span>
+            </label>
+            <input
+              type="text"
+              id="input-nama"
+              required
+              placeholder="Contoh: Proyektor Epson, Laptop..."
+              class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 transition"
+            >
+          </div>
+
+          <div class="sm:col-span-3">
+            <label for="input-sn" class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+              Serial Number <span class="text-rose-500">*</span>
+            </label>
+            <input
+              type="text"
+              id="input-sn"
+              required
+              placeholder="Contoh: SN-EPS-99210"
+              class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 font-mono focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 transition"
+            >
+          </div>
+
+          <div class="sm:col-span-2">
+            <label for="input-jumlah" class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+              Jumlah Barang <span class="text-rose-500">*</span>
+            </label>
+            <input
+              type="number"
+              id="input-jumlah"
+              required
+              min="1"
+              value="1"
+              placeholder="1"
+              class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 transition"
+            >
+          </div>
+
+          <div class="sm:col-span-5">
+            <label for="input-peminjam" class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+              Peminjam <span class="text-rose-500">*</span>
+            </label>
+            <input
+              type="text"
+              id="input-peminjam"
+              required
+              placeholder="Nama peminjam barang..."
+              class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 transition"
+            >
+          </div>
+
+          <div class="sm:col-span-5">
+            <label for="input-penyerah" class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+              Yang Menyerahkan <span class="text-rose-500">*</span>
+            </label>
+            <input
+              type="text"
+              id="input-penyerah"
+              required
+              placeholder="Nama petugas / yang menyerahkan..."
+              class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 transition"
+            >
+          </div>
+
+          <div class="sm:col-span-2">
+            <button
+              type="submit"
+              id="btn-submit"
+              class="w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold text-sm py-2.5 px-4 rounded-xl shadow-sm transition flex items-center justify-center gap-1.5"
+            >
+              <svg id="submit-icon-plus" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              <span id="submit-text">Tambah</span>
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Daftar / Tabel Peminjaman Aktif -->
+      <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="p-4 sm:p-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-base font-semibold text-slate-900">Daftar Barang Sedang Dipinjam</h2>
+            <p class="text-xs text-slate-500">Pilih <strong>Kembalikan</strong> untuk memproses pengembalian atau <strong>Edit / Hapus</strong></p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="relative flex-1 sm:w-64">
+              <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
+              </svg>
+              <input
+                type="text"
+                id="search-input"
+                placeholder="Cari barang, SN, peminjam..."
+                class="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-200 text-sm focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-600/20"
+              >
+              <button
+                type="button"
+                id="btn-clear-search"
+                title="Bersihkan pencarian"
+                class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50/80 border-b border-slate-200 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                <th class="py-3.5 px-4 w-12 text-center">No</th>
+                <th class="py-3.5 px-4">Tanggal</th>
+                <th class="py-3.5 px-4">Nama Barang</th>
+                <th class="py-3.5 px-4">Serial Number</th>
+                <th class="py-3.5 px-4 text-center">Jumlah Barang</th>
+                <th class="py-3.5 px-4">Peminjam</th>
+                <th class="py-3.5 px-4">Yang Menyerahkan</th>
+                <th class="py-3.5 px-4 text-right w-60">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="loan-tbody" class="divide-y divide-slate-200 text-sm">
+              <!-- Baris dirender via JavaScript -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Empty State Peminjaman -->
+        <div id="empty-state" class="hidden py-12 px-4 text-center">
+          <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <p id="empty-title" class="text-sm font-semibold text-slate-700">Tidak ada data peminjaman aktif</p>
+          <p id="empty-subtitle" class="text-xs text-slate-500 mt-1">Semua barang sudah dikembalikan atau belum ada data yang ditambahkan.</p>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- PAGE 2: HALAMAN PENGEMBALIAN BARANG                       -->
+    <!-- ========================================================= -->
+    <div id="page-pengembalian" class="hidden space-y-6 animate-fade-in">
+
+      <!-- Top Bar Navigasi Page Pengembalian -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 sm:px-6 rounded-2xl border border-slate-200 shadow-xs">
+        <div class="flex items-center gap-2.5">
+          <span class="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-700 font-bold text-xs uppercase tracking-wider">Halaman Aktif</span>
+          <h2 class="text-base sm:text-lg font-bold text-slate-900">Pengembalian Barang</h2>
+        </div>
+        <button
+          type="button"
+          id="btn-goto-peminjaman"
+          class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white shadow-sm transition"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M11 17l-5-5m0 0l5-5m-5 5h12" />
+          </svg>
+          <span>Kembali ke Halaman Peminjaman</span>
+        </button>
+      </div>
+
+      <!-- Form Proses Pengembalian (Tersambung ke Database Peminjaman) -->
+      <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6">
+        <div class="mb-4">
+          <h2 class="text-base font-semibold text-slate-900 flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-600 inline-block"></span>
+            Formulir Pengembalian Barang
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">Pilih barang yang sedang dipinjam dari database, lalu isi nama yang menyerahkan pengembalian beserta catatan kondisinya.</p>
+        </div>
+
+        <form id="return-form" class="space-y-4">
+          <div class="grid grid-cols-1 sm:grid-cols-12 gap-4">
+            <div class="sm:col-span-8">
+              <label for="select-loan-item" class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+                Pilih Barang yang Dikembalikan (Dari Database Peminjaman) <span class="text-rose-500">*</span>
+              </label>
+              <select
+                id="select-loan-item"
+                required
+                class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 bg-white focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20 transition"
+              >
+                <option value="">-- Pilih Barang yang Sedang Dipinjam --</option>
+              </select>
+            </div>
+
+            <div class="sm:col-span-4">
+              <label for="input-tanggal-kembali" class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+                Tanggal Pengembalian <span class="text-rose-500">*</span>
+              </label>
+              <input
+                type="date"
+                id="input-tanggal-kembali"
+                required
+                class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20 transition"
+              >
+            </div>
+          </div>
+
+          <!-- Ringkasan Detail Barang Terpilih -->
+          <div id="selected-loan-preview" class="hidden rounded-xl bg-slate-50 border border-slate-200 p-4 grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
+            <div>
+              <span class="text-slate-400 block">Nama Barang</span>
+              <span id="preview-nama" class="font-semibold text-slate-900 mt-0.5 block">-</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block">Serial Number</span>
+              <span id="preview-sn" class="font-mono font-semibold text-slate-800 mt-0.5 block">-</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block">Jumlah</span>
+              <span id="preview-jumlah" class="font-semibold text-indigo-700 mt-0.5 block">-</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block">Peminjam Awal</span>
+              <span id="preview-peminjam" class="font-semibold text-slate-800 mt-0.5 block">-</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block">Tanggal Pinjam</span>
+              <span id="preview-tanggal" class="font-medium text-slate-700 mt-0.5 block">-</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end">
+            <div class="sm:col-span-4">
+              <label for="input-penyerah-kembali" class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+                Nama Yang Menyerahkan <span class="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                id="input-penyerah-kembali"
+                required
+                placeholder="Nama yang mengembalikan / menyerahkan..."
+                class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20 transition"
+              >
+            </div>
+
+            <div class="sm:col-span-5">
+              <label for="input-catatan-kembali" class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+                Catatan Pengembalian <span class="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                id="input-catatan-kembali"
+                required
+                placeholder="Contoh: Kondisi lengkap & berfungsi normal..."
+                class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20 transition"
+              >
+            </div>
+
+            <div class="sm:col-span-3">
+              <button
+                type="submit"
+                id="btn-submit-return"
+                class="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold text-sm py-2.5 px-4 rounded-xl shadow-sm transition flex items-center justify-center gap-1.5"
+              >
+                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+                <span>Konfirmasi Pengembalian</span>
+              </button>
+            </div>
+          </div>
+        </form>
+      </section>
+
+      <!-- Tabel Riwayat Pengembalian Barang -->
+      <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="p-4 sm:p-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-base font-semibold text-slate-900">Tabel Data Pengembalian Barang</h2>
+            <p class="text-xs text-slate-500">Daftar barang yang telah dikembalikan beserta nama yang menyerahkan dan catatan</p>
+          </div>
+
+          <div class="relative flex-1 sm:w-64 sm:flex-initial">
+            <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
+            </svg>
+            <input
+              type="text"
+              id="search-return-input"
+              placeholder="Cari riwayat pengembalian..."
+              class="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-sm focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"
+            >
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50/80 border-b border-slate-200 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                <th class="py-3.5 px-4 w-12 text-center">No</th>
+                <th class="py-3.5 px-4">Tgl Kembali</th>
+                <th class="py-3.5 px-4">Nama Barang</th>
+                <th class="py-3.5 px-4">Serial Number</th>
+                <th class="py-3.5 px-4 text-center">Jumlah</th>
+                <th class="py-3.5 px-4">Peminjam</th>
+                <th class="py-3.5 px-4">Yang Menyerahkan</th>
+                <th class="py-3.5 px-4">Catatan</th>
+                <th class="py-3.5 px-4 text-right w-28">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="return-tbody" class="divide-y divide-slate-200 text-sm">
+              <!-- Dirender via JS -->
+            </tbody>
+          </table>
+        </div>
+
+        <div id="empty-return-state" class="hidden py-12 px-4 text-center">
+          <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <p class="text-sm font-semibold text-slate-700">Belum ada riwayat pengembalian barang</p>
+          <p class="text-xs text-slate-500 mt-1">Pilih barang dari formulir di atas untuk mencatat pengembalian.</p>
+        </div>
+      </section>
+
+    </div>
+
+  </main>
+
+  <!-- Modal Pengaturan Database Bersama (Vercel / Cloud / JSON) -->
+  <div id="db-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200 animate-fade-in max-h-[90vh] overflow-y-auto">
+      <div class="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
+        <div>
+          <h3 class="text-base font-bold text-slate-900">Koneksi Database Bersama (Vercel API / Cloud)</h3>
+          <p class="text-xs text-slate-500 mt-0.5">Saat di-deploy di Vercel, aplikasi otomatis terhubung ke endpoint <code class="bg-slate-100 px-1 rounded">/api/db</code></p>
+        </div>
+        <button type="button" id="btn-close-db-modal" class="text-slate-400 hover:text-slate-600 p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="mt-4 space-y-4 text-sm">
+        <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="font-semibold text-slate-900 text-xs uppercase tracking-wider">Endpoint Database REST / Vercel</span>
+            <span id="modal-conn-badge" class="text-xs px-2 py-0.5 rounded-md font-medium bg-emerald-100 text-emerald-800">Siap</span>
+          </div>
+          <p class="text-xs text-slate-600 leading-relaxed">
+            Kosongkan jika ingin memakai API bawaan Vercel (<code class="bg-slate-200 px-1 py-0.5 rounded text-slate-800">/api/db</code>), atau isi dengan URL Firebase Realtime Database (<code class="bg-slate-200 px-1 py-0.5 rounded text-slate-800">https://...firebaseio.com/inventaris.json</code>).
+          </p>
+          <div>
+            <input
+              type="url"
+              id="input-db-url"
+              placeholder="Contoh: https://project-anda.firebaseio.com/inventaris.json"
+              class="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs sm:text-sm text-slate-900 focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-600/20"
+            >
+          </div>
+          <div class="flex flex-wrap items-center gap-2 pt-1">
+            <button
+              type="button"
+              id="btn-save-db-url"
+              class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white transition"
+            >
+              Simpan & Sinkronkan
+            </button>
+            <button
+              type="button"
+              id="btn-disconnect-db"
+              class="px-3 py-2 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-200 transition"
+            >
+              Reset ke Default
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-2.5">
+          <span class="font-semibold text-slate-900 text-xs uppercase tracking-wider block">Cadangkan / Impor Database (.JSON)</span>
+          <div class="flex flex-wrap items-center gap-2 pt-1">
+            <button
+              type="button"
+              id="btn-export-json"
+              class="px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 transition"
+            >
+              Unduh Backup (.json)
+            </button>
+            <label class="px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 transition cursor-pointer">
+              Impor File (.json)
+              <input type="file" id="input-import-json" accept=".json,application/json" class="hidden">
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Konfirmasi Hapus Data -->
+  <div id="delete-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200 animate-fade-in">
+      <div class="flex items-start gap-4">
+        <div class="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </div>
+        <div class="flex-1">
+          <h3 class="text-base font-bold text-slate-900">Hapus Data Peminjaman</h3>
+          <p class="text-sm text-slate-600 mt-1">
+            Apakah Anda yakin ingin menghapus data <strong id="modal-item-name" class="text-slate-900"></strong> (SN: <span id="modal-item-sn" class="font-mono text-xs"></span>, <span id="modal-item-qty"></span> unit) milik <strong id="modal-item-borrower" class="text-slate-900"></strong>?
+          </p>
+        </div>
+      </div>
+      <div class="mt-6 flex items-center justify-end gap-2.5">
+        <button
+          type="button"
+          id="btn-modal-cancel"
+          class="px-4 py-2 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100 transition"
+        >
+          Batal
+        </button>
+        <button
+          type="button"
+          id="btn-modal-confirm"
+          class="px-4 py-2 rounded-xl text-sm font-semibold bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition"
+        >
+          Ya, Hapus Data
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <script>
+    (function () {
+      const STORAGE_KEY = 'manajemen_inventaris_state_v3';
+      const DB_URL_KEY = 'manajemen_inventaris_db_url_v3';
+
+      function getTodayIso() {
+        const d = new Date();
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+
+      const defaultLoans = [
+        {
+          id: 'item-1',
+          tanggal: '2026-11-11',
+          namaBarang: 'Proyektor Epson EB-X500',
+          serialNumber: 'SN-EPS-88412',
+          jumlahBarang: 1,
+          peminjam: 'Budi Santoso',
+          yangMenyerahkan: 'Rizky (Admin Logistik)'
+        },
+        {
+          id: 'item-2',
+          tanggal: '2026-11-11',
+          namaBarang: 'Kabel Roll Industrial 15m',
+          serialNumber: 'SN-KBL-10294',
+          jumlahBarang: 3,
+          peminjam: 'Siti Rahma',
+          yangMenyerahkan: 'Rizky (Admin Logistik)'
+        },
+        {
+          id: 'item-3',
+          tanggal: '2026-11-10',
+          namaBarang: 'Kamera Sony Alpha A6400',
+          serialNumber: 'SN-SNY-55301',
+          jumlahBarang: 1,
+          peminjam: 'Andi Pratama',
+          yangMenyerahkan: 'Dewi (Staf Inventaris)'
+        },
+        {
+          id: 'item-4',
+          tanggal: '2026-11-09',
+          namaBarang: 'HT Motorola CP1660',
+          serialNumber: 'SN-MTR-77401',
+          jumlahBarang: 6,
+          peminjam: 'Panitia Seminar',
+          yangMenyerahkan: 'Dewi (Staf Inventaris)'
+        }
+      ];
+
+      const defaultReturns = [
+        {
+          id: 'ret-1',
+          loanId: 'item-0',
+          tanggalPinjam: '2026-11-08',
+          tanggalKembali: '2026-11-10',
+          namaBarang: 'Microphone Wireless Shure',
+          serialNumber: 'SN-SHR-33190',
+          jumlahBarang: 2,
+          peminjam: 'Dian Kusuma',
+          yangMenyerahkanPinjam: 'Rizky (Admin Logistik)',
+          yangMenyerahkanKembali: 'Dian Kusuma',
+          catatan: 'Kondisi lengkap beserta koper & baterai cadangan'
+        }
+      ];
+
+      let loans = [];
+      let returns = [];
+      let searchQuery = '';
+      let searchReturnQuery = '';
+      let pendingDeleteId = null;
+      let remoteDbUrl = '';
+      let pollTimer = null;
+
+      // Sinkronisasi antar tab
+      let bc = null;
+      try {
+        if ('BroadcastChannel' in window) {
+          bc = new BroadcastChannel('inventaris_vercel_sync_v3');
+          bc.onmessage = function (ev) {
+            if (ev.data && Array.isArray(ev.data.loans) && Array.isArray(ev.data.returns)) {
+              loans = ev.data.loans;
+              returns = ev.data.returns;
+              saveLocalOnly();
+              renderAll();
+            }
+          };
+        }
+      } catch (e) {}
+
+      // Navigasi Halaman
+      const pagePeminjaman = document.getElementById('page-peminjaman');
+      const pagePengembalian = document.getElementById('page-pengembalian');
+      const btnGotoPengembalian = document.getElementById('btn-goto-pengembalian');
+      const btnGotoPeminjaman = document.getElementById('btn-goto-peminjaman');
+
+      // DOM Halaman Peminjaman
+      const loanForm = document.getElementById('loan-form');
+      const editIdInput = document.getElementById('edit-id');
+      const inputTanggal = document.getElementById('input-tanggal');
+      const inputNama = document.getElementById('input-nama');
+      const inputSn = document.getElementById('input-sn');
+      const inputJumlah = document.getElementById('input-jumlah');
+      const inputPeminjam = document.getElementById('input-peminjam');
+      const inputPenyerah = document.getElementById('input-penyerah');
+      const formTitle = document.getElementById('form-title');
+      const btnCancelEdit = document.getElementById('btn-cancel-edit');
+      const btnSubmit = document.getElementById('btn-submit');
+      const submitText = document.getElementById('submit-text');
+
+      const loanTbody = document.getElementById('loan-tbody');
+      const emptyState = document.getElementById('empty-state');
+      const emptyTitle = document.getElementById('empty-title');
+      const emptySubtitle = document.getElementById('empty-subtitle');
+
+      // DOM Halaman Pengembalian
+      const returnForm = document.getElementById('return-form');
+      const selectLoanItem = document.getElementById('select-loan-item');
+      const inputTanggalKembali = document.getElementById('input-tanggal-kembali');
+      const inputPenyerahKembali = document.getElementById('input-penyerah-kembali');
+      const inputCatatanKembali = document.getElementById('input-catatan-kembali');
+      const selectedLoanPreview = document.getElementById('selected-loan-preview');
+      const previewNama = document.getElementById('preview-nama');
+      const previewSn = document.getElementById('preview-sn');
+      const previewJumlah = document.getElementById('preview-jumlah');
+      const previewPeminjam = document.getElementById('preview-peminjam');
+      const previewTanggal = document.getElementById('preview-tanggal');
+      const returnTbody = document.getElementById('return-tbody');
+      const emptyReturnState = document.getElementById('empty-return-state');
+      const searchReturnInput = document.getElementById('search-return-input');
+
+      // Statistik Header
+      const statRecords = document.getElementById('stat-records');
+      const statUnits = document.getElementById('stat-units');
+      const statReturned = document.getElementById('stat-returned');
+
+      // Pencarian Peminjaman
+      const searchInput = document.getElementById('search-input');
+      const btnClearSearch = document.getElementById('btn-clear-search');
+
+      // Modal Hapus
+      const deleteModal = document.getElementById('delete-modal');
+      const modalItemName = document.getElementById('modal-item-name');
+      const modalItemSn = document.getElementById('modal-item-sn');
+      const modalItemQty = document.getElementById('modal-item-qty');
+      const modalItemBorrower = document.getElementById('modal-item-borrower');
+      const btnModalCancel = document.getElementById('btn-modal-cancel');
+      const btnModalConfirm = document.getElementById('btn-modal-confirm');
+
+      // Modal DB
+      const dbModal = document.getElementById('db-modal');
+      const btnOpenDbModal = document.getElementById('btn-open-db-modal');
+      const btnCloseDbModal = document.getElementById('btn-close-db-modal');
+      const inputDbUrl = document.getElementById('input-db-url');
+      const btnSaveDbUrl = document.getElementById('btn-save-db-url');
+      const btnDisconnectDb = document.getElementById('btn-disconnect-db');
+      const dbStatusDot = document.getElementById('db-status-dot');
+      const dbStatusLabel = document.getElementById('db-status-label');
+      const modalConnBadge = document.getElementById('modal-conn-badge');
+      const btnExportJson = document.getElementById('btn-export-json');
+      const inputImportJson = document.getElementById('input-import-json');
+
+      const toastContainer = document.getElementById('toast-container');
+
+      function switchPage(targetPage, preselectLoanId) {
+        if (targetPage === 'pengembalian') {
+          pagePeminjaman.classList.add('hidden');
+          pagePengembalian.classList.remove('hidden');
+          populateReturnDropdown(preselectLoanId);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+          pagePengembalian.classList.add('hidden');
+          pagePeminjaman.classList.remove('hidden');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      }
+
+      btnGotoPengembalian.addEventListener('click', function () {
+        switchPage('pengembalian');
+      });
+
+      btnGotoPeminjaman.addEventListener('click', function () {
+        switchPage('peminjaman');
+      });
+
+      function normalizeLoan(raw, idx) {
+        return {
+          id: raw.id || ('loan-' + Date.now() + '-' + idx),
+          tanggal: raw.tanggal || getTodayIso(),
+          namaBarang: raw.namaBarang || '-',
+          serialNumber: raw.serialNumber || '-',
+          jumlahBarang: Number(raw.jumlahBarang) || 1,
+          peminjam: raw.peminjam || '-',
+          yangMenyerahkan: raw.yangMenyerahkan || '-'
+        };
+      }
+
+      function normalizeReturn(raw, idx) {
+        return {
+          id: raw.id || ('ret-' + Date.now() + '-' + idx),
+          loanId: raw.loanId || '',
+          tanggalPinjam: raw.tanggalPinjam || getTodayIso(),
+          tanggalKembali: raw.tanggalKembali || getTodayIso(),
+          namaBarang: raw.namaBarang || '-',
+          serialNumber: raw.serialNumber || '-',
+          jumlahBarang: Number(raw.jumlahBarang) || 1,
+          peminjam: raw.peminjam || '-',
+          yangMenyerahkanPinjam: raw.yangMenyerahkanPinjam || '-',
+          yangMenyerahkanKembali: raw.yangMenyerahkanKembali || '-',
+          catatan: raw.catatan || '-'
+        };
+      }
+
+      function saveLocalOnly() {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ loans, returns }));
+        } catch (err) {}
+      }
+
+      function updateDbStatusUI(isConnected) {
+        if (isConnected) {
+          dbStatusDot.className = 'w-2 h-2 rounded-full bg-emerald-500';
+          dbStatusLabel.textContent = 'Cloud DB Aktif';
+          modalConnBadge.className = 'text-xs px-2 py-0.5 rounded-md font-medium bg-emerald-100 text-emerald-800';
+          modalConnBadge.textContent = 'Terhubung';
+        } else {
+          dbStatusDot.className = 'w-2 h-2 rounded-full bg-indigo-500';
+          dbStatusLabel.textContent = 'DB Sync';
+          modalConnBadge.className = 'text-xs px-2 py-0.5 rounded-md font-medium bg-indigo-100 text-indigo-800';
+          modalConnBadge.textContent = 'Aktif';
+        }
+      }
+
+      async function fetchFromRemoteDb(silent) {
+        if (!remoteDbUrl) return false;
+        try {
+          const res = await fetch(remoteDbUrl, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' }
+          });
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          const data = await res.json();
+
+          if (data && typeof data === 'object' && !Array.isArray(data)) {
+            if (Array.isArray(data.loans)) loans = data.loans.map(normalizeLoan);
+            if (Array.isArray(data.returns)) returns = data.returns.map(normalizeReturn);
+          } else if (Array.isArray(data)) {
+            loans = data.map(normalizeLoan);
+          }
+
+          saveLocalOnly();
+          renderAll();
+          updateDbStatusUI(true);
+          if (!silent) showToast('Database berhasil disinkronkan.', 'return');
+          return true;
+        } catch (err) {
+          if (!silent) {
+            showToast('Mode lokal aktif (endpoint eksternal belum terjangkau).', 'edit');
+          }
+          return false;
+        }
+      }
+
+      async function pushToRemoteDb() {
+        if (!remoteDbUrl) return;
+        try {
+          await fetch(remoteDbUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ loans, returns })
+          });
+          updateDbStatusUI(true);
+        } catch (err) {}
+      }
+
+      function startPolling() {
+        if (pollTimer) clearInterval(pollTimer);
+        if (!remoteDbUrl) return;
+        pollTimer = setInterval(function () {
+          if (!editIdInput.value) {
+            fetchFromRemoteDb(true);
+          }
+        }, 5000);
+      }
+
+      async function loadState() {
+        try {
+          const savedUrl = localStorage.getItem(DB_URL_KEY);
+          if (savedUrl) {
+            remoteDbUrl = savedUrl;
+            inputDbUrl.value = savedUrl;
+          }
+        } catch (e) {}
+
+        // Saat di-deploy di Vercel (atau dijalankan di server port 3000), otomatis gunakan /api/db
+        const host = window.location.hostname;
+        if (!remoteDbUrl && (host.endsWith('.vercel.app') || window.location.port === '3000')) {
+          remoteDbUrl = window.location.origin + '/api/db';
+          inputDbUrl.value = remoteDbUrl;
+        }
+
+        if (remoteDbUrl) {
+          const ok = await fetchFromRemoteDb(true);
+          if (ok) {
+            startPolling();
+            return;
+          }
+        }
+
+        try {
+          const saved = localStorage.getItem(STORAGE_KEY);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (parsed && typeof parsed === 'object') {
+              loans = Array.isArray(parsed.loans) ? parsed.loans.map(normalizeLoan) : defaultLoans.slice();
+              returns = Array.isArray(parsed.returns) ? parsed.returns.map(normalizeReturn) : defaultReturns.slice();
+              updateDbStatusUI(false);
+              renderAll();
+              return;
+            }
+          }
+        } catch (err) {}
+
+        loans = defaultLoans.slice();
+        returns = defaultReturns.slice();
+        updateDbStatusUI(false);
+        renderAll();
+      }
+
+      function saveState() {
+        saveLocalOnly();
+        if (bc) {
+          try { bc.postMessage({ loans, returns }); } catch (e) {}
+        }
+        if (remoteDbUrl) {
+          pushToRemoteDb();
+        }
+      }
+
+      function showToast(message, type) {
+        const toast = document.createElement('div');
+        const bgClass = type === 'success'
+          ? 'bg-slate-900 text-white'
+          : type === 'edit'
+          ? 'bg-amber-600 text-white'
+          : 'bg-emerald-600 text-white';
+
+        toast.className = `pointer-events-auto px-4 py-2.5 rounded-xl shadow-lg text-xs sm:text-sm font-medium flex items-center gap-2 animate-fade-in ${bgClass}`;
+        toast.textContent = message;
+        toastContainer.appendChild(toast);
+
+        setTimeout(() => {
+          toast.style.opacity = '0';
+          toast.style.transition = 'opacity 0.2s ease';
+          setTimeout(() => toast.remove(), 200);
+        }, 2600);
+      }
+
+      function escapeHtml(str) {
+        return String(str ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
+      function formatTanggalIndo(isoStr) {
+        if (!isoStr) return '-';
+        const parts = String(isoStr).split('-');
+        if (parts.length !== 3) return isoStr;
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+        const mIdx = parseInt(parts[1], 10) - 1;
+        return `${parts[2]} ${months[mIdx] || parts[1]} ${parts[0]}`;
+      }
+
+      function resetFormMode() {
+        editIdInput.value = '';
+        loanForm.reset();
+        inputTanggal.value = getTodayIso();
+        inputJumlah.value = '1';
+        formTitle.innerHTML = '<span class="w-2.5 h-2.5 rounded-full bg-indigo-600 inline-block"></span> Tambah Peminjaman Baru';
+        submitText.textContent = 'Tambah';
+        btnSubmit.className = 'w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold text-sm py-2.5 px-4 rounded-xl shadow-sm transition flex items-center justify-center gap-1.5';
+        btnCancelEdit.classList.add('hidden');
+      }
+
+      function enterEditMode(item) {
+        editIdInput.value = item.id;
+        inputTanggal.value = item.tanggal || getTodayIso();
+        inputNama.value = item.namaBarang;
+        inputSn.value = item.serialNumber || '';
+        inputJumlah.value = item.jumlahBarang;
+        inputPeminjam.value = item.peminjam;
+        inputPenyerah.value = item.yangMenyerahkan || '';
+
+        formTitle.innerHTML = '<span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span> Edit Data Peminjaman';
+        submitText.textContent = 'Simpan';
+        btnSubmit.className = 'w-full bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white font-semibold text-sm py-2.5 px-4 rounded-xl shadow-sm transition flex items-center justify-center gap-1.5';
+        btnCancelEdit.classList.remove('hidden');
+
+        inputNama.focus();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      function openDeleteModal(item) {
+        pendingDeleteId = item.id;
+        modalItemName.textContent = item.namaBarang;
+        modalItemSn.textContent = item.serialNumber || '-';
+        modalItemQty.textContent = item.jumlahBarang;
+        modalItemBorrower.textContent = item.peminjam;
+        deleteModal.classList.remove('hidden');
+        deleteModal.classList.add('flex');
+      }
+
+      function closeDeleteModal() {
+        pendingDeleteId = null;
+        deleteModal.classList.add('hidden');
+        deleteModal.classList.remove('flex');
+      }
+
+      function populateReturnDropdown(selectedId) {
+        const currentVal = selectedId !== undefined ? selectedId : selectLoanItem.value;
+        selectLoanItem.innerHTML = '<option value="">-- Pilih Barang yang Sedang Dipinjam --</option>';
+
+        loans.forEach((item) => {
+          const opt = document.createElement('option');
+          opt.value = item.id;
+          opt.textContent = `${item.namaBarang} (SN: ${item.serialNumber}) — Dipinjam: ${item.peminjam} (${item.jumlahBarang} Unit)`;
+          selectLoanItem.appendChild(opt);
+        });
+
+        if (currentVal && loans.some(l => l.id === currentVal)) {
+          selectLoanItem.value = currentVal;
+        } else {
+          selectLoanItem.value = '';
+        }
+        updateReturnPreview();
+      }
+
+      function updateReturnPreview() {
+        const chosenId = selectLoanItem.value;
+        const item = loans.find(l => l.id === chosenId);
+        if (!item) {
+          selectedLoanPreview.classList.add('hidden');
+          return;
+        }
+        selectedLoanPreview.classList.remove('hidden');
+        previewNama.textContent = item.namaBarang;
+        previewSn.textContent = item.serialNumber;
+        previewJumlah.textContent = item.jumlahBarang + ' Unit';
+        previewPeminjam.textContent = item.peminjam;
+        previewTanggal.textContent = formatTanggalIndo(item.tanggal);
+        if (!inputPenyerahKembali.value.trim()) {
+          inputPenyerahKembali.value = item.peminjam;
+        }
+      }
+
+      selectLoanItem.addEventListener('change', function () {
+        inputPenyerahKembali.value = '';
+        updateReturnPreview();
+      });
+
+      function renderLoanTable() {
+        const totalRecords = loans.length;
+        const totalUnits = loans.reduce((acc, cur) => acc + (Number(cur.jumlahBarang) || 0), 0);
+        statRecords.textContent = totalRecords;
+        statUnits.textContent = totalUnits;
+        statReturned.textContent = returns.length;
+
+        const q = searchQuery.trim().toLowerCase();
+        const filtered = loans.filter(item => {
+          if (!q) return true;
+          return (
+            (item.tanggal || '').toLowerCase().includes(q) ||
+            (item.namaBarang || '').toLowerCase().includes(q) ||
+            (item.serialNumber || '').toLowerCase().includes(q) ||
+            (item.peminjam || '').toLowerCase().includes(q) ||
+            (item.yangMenyerahkan || '').toLowerCase().includes(q) ||
+            String(item.jumlahBarang).includes(q)
+          );
+        });
+
+        loanTbody.innerHTML = '';
+
+        if (filtered.length === 0) {
+          emptyState.classList.remove('hidden');
+          if (q) {
+            emptyTitle.textContent = 'Pencarian tidak ditemukan';
+            emptySubtitle.textContent = `Tidak ada data peminjaman dengan kata kunci "${searchQuery}".`;
+          } else {
+            emptyTitle.textContent = 'Tidak ada data peminjaman aktif';
+            emptySubtitle.textContent = 'Semua barang sudah dikembalikan atau belum ada data yang ditambahkan.';
+          }
+          return;
+        }
+
+        emptyState.classList.add('hidden');
+
+        filtered.forEach((item, index) => {
+          const isEditingThis = editIdInput.value === item.id;
+          const tr = document.createElement('tr');
+          tr.className = isEditingThis
+            ? 'bg-amber-50/70 transition'
+            : 'hover:bg-slate-50/90 transition';
+
+          tr.innerHTML = `
+            <td class="py-3.5 px-4 text-center text-slate-400 font-medium">${index + 1}</td>
+            <td class="py-3.5 px-4 text-slate-600 whitespace-nowrap">${escapeHtml(formatTanggalIndo(item.tanggal))}</td>
+            <td class="py-3.5 px-4 font-semibold text-slate-900">${escapeHtml(item.namaBarang)}</td>
+            <td class="py-3.5 px-4">
+              <span class="font-mono text-xs px-2 py-1 rounded-md bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
+                ${escapeHtml(item.serialNumber || '-')}
+              </span>
+            </td>
+            <td class="py-3.5 px-4 text-center">
+              <span class="inline-flex items-center justify-center px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 font-semibold text-xs whitespace-nowrap">
+                ${Number(item.jumlahBarang)} Unit
+              </span>
+            </td>
+            <td class="py-3.5 px-4 text-slate-700">
+              <span class="font-medium">${escapeHtml(item.peminjam)}</span>
+            </td>
+            <td class="py-3.5 px-4 text-slate-600">
+              <span>${escapeHtml(item.yangMenyerahkan || '-')}</span>
+            </td>
+            <td class="py-3.5 px-4 text-right whitespace-nowrap">
+              <div class="inline-flex items-center justify-end gap-1.5">
+                <button
+                  type="button"
+                  data-action="return"
+                  data-id="${escapeHtml(item.id)}"
+                  class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 transition inline-flex items-center gap-1"
+                  title="Proses pengembalian barang ini"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Kembalikan
+                </button>
+                <button
+                  type="button"
+                  data-action="edit"
+                  data-id="${escapeHtml(item.id)}"
+                  class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 transition inline-flex items-center gap-1"
+                  title="Edit peminjaman"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  data-action="delete"
+                  data-id="${escapeHtml(item.id)}"
+                  class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 transition inline-flex items-center gap-1"
+                  title="Hapus data"
+                >
+                  Hapus
+                </button>
+              </div>
+            </td>
+          `;
+          loanTbody.appendChild(tr);
+        });
+      }
+
+      function renderReturnTable() {
+        const q = searchReturnQuery.trim().toLowerCase();
+        const filtered = returns.filter(item => {
+          if (!q) return true;
+          return (
+            (item.tanggalKembali || '').toLowerCase().includes(q) ||
+            (item.namaBarang || '').toLowerCase().includes(q) ||
+            (item.serialNumber || '').toLowerCase().includes(q) ||
+            (item.peminjam || '').toLowerCase().includes(q) ||
+            (item.yangMenyerahkanKembali || '').toLowerCase().includes(q) ||
+            (item.catatan || '').toLowerCase().includes(q)
+          );
+        });
+
+        returnTbody.innerHTML = '';
+
+        if (filtered.length === 0) {
+          emptyReturnState.classList.remove('hidden');
+          return;
+        }
+
+        emptyReturnState.classList.add('hidden');
+
+        filtered.forEach((item, index) => {
+          const tr = document.createElement('tr');
+          tr.className = 'hover:bg-slate-50/90 transition';
+          tr.innerHTML = `
+            <td class="py-3.5 px-4 text-center text-slate-400 font-medium">${index + 1}</td>
+            <td class="py-3.5 px-4 text-slate-600 whitespace-nowrap">${escapeHtml(formatTanggalIndo(item.tanggalKembali))}</td>
+            <td class="py-3.5 px-4 font-semibold text-slate-900">${escapeHtml(item.namaBarang)}</td>
+            <td class="py-3.5 px-4">
+              <span class="font-mono text-xs px-2 py-1 rounded-md bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
+                ${escapeHtml(item.serialNumber || '-')}
+              </span>
+            </td>
+            <td class="py-3.5 px-4 text-center">
+              <span class="inline-flex items-center justify-center px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-semibold text-xs whitespace-nowrap">
+                ${Number(item.jumlahBarang)} Unit
+              </span>
+            </td>
+            <td class="py-3.5 px-4 text-slate-700">${escapeHtml(item.peminjam)}</td>
+            <td class="py-3.5 px-4 font-medium text-slate-900">${escapeHtml(item.yangMenyerahkanKembali)}</td>
+            <td class="py-3.5 px-4 text-slate-600">${escapeHtml(item.catatan)}</td>
+            <td class="py-3.5 px-4 text-right whitespace-nowrap">
+              <button
+                type="button"
+                data-return-action="delete-return"
+                data-id="${escapeHtml(item.id)}"
+                class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 transition"
+                title="Hapus riwayat pengembalian"
+              >
+                Hapus
+              </button>
+            </td>
+          `;
+          returnTbody.appendChild(tr);
+        });
+      }
+
+      function renderAll() {
+        renderLoanTable();
+        renderReturnTable();
+        populateReturnDropdown();
+      }
+
+      // Submit Form Peminjaman
+      loanForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        const tanggal = inputTanggal.value;
+        const namaBarang = inputNama.value.trim();
+        const serialNumber = inputSn.value.trim();
+        const jumlahBarang = parseInt(inputJumlah.value, 10);
+        const peminjam = inputPeminjam.value.trim();
+        const yangMenyerahkan = inputPenyerah.value.trim();
+
+        if (!tanggal || !namaBarang || !serialNumber || !peminjam || !yangMenyerahkan || isNaN(jumlahBarang) || jumlahBarang < 1) {
+          showToast('Mohon lengkapi semua kolom peminjaman dengan benar.', 'edit');
+          return;
+        }
+
+        const currentEditId = editIdInput.value;
+
+        if (currentEditId) {
+          const idx = loans.findIndex(item => item.id === currentEditId);
+          if (idx !== -1) {
+            loans[idx] = {
+              ...loans[idx],
+              tanggal,
+              namaBarang,
+              serialNumber,
+              jumlahBarang,
+              peminjam,
+              yangMenyerahkan
+            };
+            saveState();
+            resetFormMode();
+            renderAll();
+            showToast(`Data "${namaBarang}" berhasil diperbarui.`, 'edit');
+          }
+        } else {
+          const newItem = {
+            id: 'loan-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+            tanggal,
+            namaBarang,
+            serialNumber,
+            jumlahBarang,
+            peminjam,
+            yangMenyerahkan
+          };
+          loans.unshift(newItem);
+          saveState();
+          resetFormMode();
+          renderAll();
+          showToast(`Peminjaman "${namaBarang}" berhasil ditambahkan.`, 'success');
+        }
+      });
+
+      // Submit Form Pengembalian
+      returnForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        const loanId = selectLoanItem.value;
+        const tanggalKembali = inputTanggalKembali.value;
+        const yangMenyerahkanKembali = inputPenyerahKembali.value.trim();
+        const catatan = inputCatatanKembali.value.trim();
+
+        const loanItem = loans.find(l => l.id === loanId);
+        if (!loanItem) {
+          showToast('Silakan pilih barang yang akan dikembalikan terlebih dahulu.', 'edit');
+          return;
+        }
+
+        if (!tanggalKembali || !yangMenyerahkanKembali || !catatan) {
+          showToast('Mohon isi Nama Yang Menyerahkan dan Catatan pengembalian.', 'edit');
+          return;
+        }
+
+        const newReturnRecord = {
+          id: 'ret-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+          loanId: loanItem.id,
+          tanggalPinjam: loanItem.tanggal,
+          tanggalKembali,
+          namaBarang: loanItem.namaBarang,
+          serialNumber: loanItem.serialNumber,
+          jumlahBarang: loanItem.jumlahBarang,
+          peminjam: loanItem.peminjam,
+          yangMenyerahkanPinjam: loanItem.yangMenyerahkan,
+          yangMenyerahkanKembali,
+          catatan
+        };
+
+        // Pindahkan dari daftar pinjaman aktif ke tabel pengembalian
+        returns.unshift(newReturnRecord);
+        loans = loans.filter(l => l.id !== loanId);
+
+        saveState();
+        returnForm.reset();
+        inputTanggalKembali.value = getTodayIso();
+        renderAll();
+        showToast(`Barang "${loanItem.namaBarang}" berhasil dicatat dikembalikan.`, 'return');
+      });
+
+      btnCancelEdit.addEventListener('click', function () {
+        resetFormMode();
+        renderLoanTable();
+      });
+
+      loanTbody.addEventListener('click', function (e) {
+        const btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+
+        const action = btn.getAttribute('data-action');
+        const id = btn.getAttribute('data-id');
+        const item = loans.find(entry => entry.id === id);
+        if (!item) return;
+
+        if (action === 'return') {
+          switchPage('pengembalian', item.id);
+          inputPenyerahKembali.value = item.peminjam;
+          inputCatatanKembali.focus();
+        } else if (action === 'edit') {
+          enterEditMode(item);
+          renderLoanTable();
+        } else if (action === 'delete') {
+          openDeleteModal(item);
+        }
+      });
+
+      returnTbody.addEventListener('click', function (e) {
+        const btn = e.target.closest('button[data-return-action="delete-return"]');
+        if (!btn) return;
+        const id = btn.getAttribute('data-id');
+        const target = returns.find(r => r.id === id);
+        returns = returns.filter(r => r.id !== id);
+        saveState();
+        renderAll();
+        if (target) {
+          showToast(`Riwayat pengembalian "${target.namaBarang}" dihapus.`, 'edit');
+        }
+      });
+
+      btnModalCancel.addEventListener('click', closeDeleteModal);
+      deleteModal.addEventListener('click', function (e) {
+        if (e.target === deleteModal) closeDeleteModal();
+      });
+
+      btnModalConfirm.addEventListener('click', function () {
+        if (!pendingDeleteId) return;
+        const target = loans.find(item => item.id === pendingDeleteId);
+        loans = loans.filter(item => item.id !== pendingDeleteId);
+
+        if (editIdInput.value === pendingDeleteId) {
+          resetFormMode();
+        }
+
+        saveState();
+        closeDeleteModal();
+        renderAll();
+
+        if (target) {
+          showToast(`Data "${target.namaBarang}" telah dihapus.`, 'edit');
+        }
+      });
+
+      // Modal Database Bersama
+      function openDbModal() {
+        inputDbUrl.value = remoteDbUrl;
+        dbModal.classList.remove('hidden');
+        dbModal.classList.add('flex');
+      }
+      function closeDbModal() {
+        dbModal.classList.add('hidden');
+        dbModal.classList.remove('flex');
+      }
+
+      btnOpenDbModal.addEventListener('click', openDbModal);
+      btnCloseDbModal.addEventListener('click', closeDbModal);
+      dbModal.addEventListener('click', function (e) {
+        if (e.target === dbModal) closeDbModal();
+      });
+
+      btnSaveDbUrl.addEventListener('click', async function () {
+        const url = inputDbUrl.value.trim();
+        if (!url) {
+          showToast('Masukkan URL endpoint terlebih dahulu.', 'edit');
+          return;
+        }
+        remoteDbUrl = url;
+        try { localStorage.setItem(DB_URL_KEY, remoteDbUrl); } catch (e) {}
+
+        const fetched = await fetchFromRemoteDb(true);
+        if (!fetched) {
+          await pushToRemoteDb();
+        }
+        startPolling();
+        closeDbModal();
+        showToast('Endpoint Database berhasil disimpan.', 'return');
+      });
+
+      btnDisconnectDb.addEventListener('click', function () {
+        remoteDbUrl = '';
+        if (pollTimer) clearInterval(pollTimer);
+        try { localStorage.removeItem(DB_URL_KEY); } catch (e) {}
+        updateDbStatusUI(false);
+        closeDbModal();
+        showToast('Kembali ke pengaturan default.', 'success');
+      });
+
+      // Ekspor & Impor JSON
+      btnExportJson.addEventListener('click', function () {
+        const blob = new Blob([JSON.stringify({ loans, returns }, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `database_inventaris_${getTodayIso()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        showToast('File JSON database berhasil diunduh.', 'success');
+      });
+
+      inputImportJson.addEventListener('change', function (e) {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function (evt) {
+          try {
+            const parsed = JSON.parse(evt.target.result);
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+              if (Array.isArray(parsed.loans)) loans = parsed.loans.map(normalizeLoan);
+              if (Array.isArray(parsed.returns)) returns = parsed.returns.map(normalizeReturn);
+              saveState();
+              renderAll();
+              closeDbModal();
+              showToast('Database berhasil diimpor.', 'return');
+            } else if (Array.isArray(parsed)) {
+              loans = parsed.map(normalizeLoan);
+              saveState();
+              renderAll();
+              closeDbModal();
+              showToast('Data peminjaman berhasil diimpor.', 'return');
+            } else {
+              showToast('Format file JSON tidak sesuai.', 'edit');
+            }
+          } catch (err) {
+            showToast('Gagal membaca file JSON.', 'edit');
+          }
+        };
+        reader.readAsText(file);
+        inputImportJson.value = '';
+      });
+
+      // Pencarian Tabel Peminjaman & Pengembalian
+      searchInput.addEventListener('input', function () {
+        searchQuery = searchInput.value;
+        if (searchQuery.trim().length > 0) {
+          btnClearSearch.classList.remove('hidden');
+        } else {
+          btnClearSearch.classList.add('hidden');
+        }
+        renderLoanTable();
+      });
+
+      btnClearSearch.addEventListener('click', function () {
+        searchInput.value = '';
+        searchQuery = '';
+        btnClearSearch.classList.add('hidden');
+        renderLoanTable();
+        searchInput.focus();
+      });
+
+      searchReturnInput.addEventListener('input', function () {
+        searchReturnQuery = searchReturnInput.value;
+        renderReturnTable();
+      });
+
+      // Inisialisasi awal
+      inputTanggal.value = getTodayIso();
+      inputTanggalKembali.value = getTodayIso();
+      loadState();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+{
+  "name": "manajemen-peminjaman-pengembalian-vercel",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Aplikasi Manajemen Peminjaman & Pengembalian Barang siap deploy ke Vercel beserta Serverless Database API (/api/db)"
+}
